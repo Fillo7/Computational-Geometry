@@ -13,6 +13,9 @@ public class Point
         this.y = y;
         this.radius = 1.0f;
         this.grahamAngle = Float.MAX_VALUE;
+        edgeStart = null;
+        edgeEnd = null;
+        path = Path.Left;
     }
   
     public Point(float x, float y, float radius)
@@ -21,12 +24,30 @@ public class Point
         this.y = y;
         this.radius = radius;
         this.grahamAngle = Float.MAX_VALUE;
+        edgeStart = null;
+        edgeEnd = null;
+        path = Path.Left;
     }
     
     public void move(float x, float y)
     {
         this.x = x;
         this.y = y;
+    }
+    
+    public boolean sharesEdge(Point other)
+    {
+        if (edgeStart == other.edgeStart || edgeStart == other.edgeEnd || edgeEnd == other.edgeStart || edgeEnd == other.edgeEnd)
+        {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    public boolean sharesPath(Point other)
+    {
+        return path == other.path;
     }
     
     @Override
@@ -48,22 +69,13 @@ public class Point
         return differenceX < 0.001 && differenceY < 0.001;
     }
     
-    public boolean sharesEdge(Point other)
-    {
-        if (edgeStart == other.edgeStart || edgeStart == other.edgeEnd || edgeEnd == other.edgeStart || edgeEnd == other.edgeEnd)
-        {
-            return true;
-        }
-        
-        return false;
-    }
-    
     float x;
     float y;
     float radius;
     float grahamAngle;
     Edge edgeStart;
     Edge edgeEnd;
+    Path path;
 };
 
 public class PositionComparator implements Comparator<Point>
@@ -107,6 +119,12 @@ public class Edge
     
     Point start;
     Point end;
+};
+
+enum Path
+{
+    Left,
+    Right
 };
 
 // Basic variables
@@ -200,11 +218,6 @@ void draw()
             fill(pointColor);
         }
     }
-     
-    if (showHull)
-    {
-        drawLines(hullPoints, hullColor); //<>//
-    }
     
     if (showTriangulation)
     {
@@ -214,6 +227,11 @@ void draw()
         {
             drawLines(points, new PVector(0, 0, 255));
         }
+    }
+    
+    if (showHull)
+    {
+        drawLines(hullPoints, hullColor); //<>//
     }
 }
 
@@ -542,20 +560,53 @@ void triangulate(ArrayList<Point> body)
     
     Collections.sort(points, new PositionComparator());
     
+    // Get 2 points which are connected to the top point
+    Point nextOne = points.get(0).edgeStart.end;
+    Point nextTwo = points.get(0).edgeEnd.start;
+    
+    // We only modify right path, because all points have path set to left by default
+    if (nextOne.x < nextTwo.x)
+    {
+        while (nextTwo != points.get(points.size() - 1))
+        {
+            nextTwo.path = Path.Right;
+            nextTwo = nextTwo.edgeEnd.start;
+        }
+    }
+    else
+    {
+        while (nextOne != points.get(points.size() - 1))
+        {
+            nextOne.path = Path.Right;
+            nextOne = nextOne.edgeStart.end;
+        }
+    }
+    
     Stack<Point> stack = new Stack<Point>();
     stack.push(points.get(0));
     stack.push(points.get(1));
     
     for (int i = 2; i < points.size(); i++)
     {
-        if (stack.peek().sharesEdge(points.get(i)))
+        if (stack.peek().sharesPath(points.get(i)))
         {
             Point top = stack.pop();
             
-            while (stack.size() > 0 && getOrientation(points.get(i), top, stack.peek()) > 0.0f)
+            if (top.path == Path.Left)
             {
-                triangulationEdges.add(new Edge(points.get(i), stack.peek()));
-                top = stack.pop();
+                while (stack.size() > 0 && getOrientation(points.get(i), top, stack.peek()) > 0.0f)
+                {
+                    triangulationEdges.add(new Edge(points.get(i), stack.peek()));
+                    top = stack.pop();
+                }
+            }
+            else
+            {
+                while (stack.size() > 0 && getOrientation(points.get(i), top, stack.peek()) <= 0.0f)
+                {
+                    triangulationEdges.add(new Edge(points.get(i), stack.peek()));
+                    top = stack.pop();
+                }
             }
             stack.push(top);
         }
