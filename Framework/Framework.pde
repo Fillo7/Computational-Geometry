@@ -1,5 +1,4 @@
 // Author: Filip Petrovic (422334)
-// Version: 30.10.2017 (Bug fixes in triangulation function)
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -8,7 +7,7 @@ import java.util.Stack;
 
 public class Point
 {
-    Point(float x, float y)
+    public Point(float x, float y)
     {
         this.x = x;
         this.y = y;
@@ -16,7 +15,7 @@ public class Point
         this.grahamAngle = Float.MAX_VALUE;
     }
   
-    Point(float x, float y, float radius)
+    public Point(float x, float y, float radius)
     {
         this.x = x;
         this.y = y;
@@ -49,10 +48,22 @@ public class Point
         return differenceX < 0.001 && differenceY < 0.001;
     }
     
+    public boolean sharesEdge(Point other)
+    {
+        if (edgeStart == other.edgeStart || edgeStart == other.edgeEnd || edgeEnd == other.edgeStart || edgeEnd == other.edgeEnd)
+        {
+            return true;
+        }
+        
+        return false;
+    }
+    
     float x;
     float y;
     float radius;
     float grahamAngle;
+    Edge edgeStart;
+    Edge edgeEnd;
 };
 
 public class PositionComparator implements Comparator<Point>
@@ -83,7 +94,7 @@ public class AngleComparator implements Comparator<Point>
 
 public class Edge
 {
-    Edge(Point start, Point end)
+    public Edge(Point start, Point end)
     {
         this.start = start;
         this.end = end;
@@ -120,7 +131,6 @@ ArrayList<Point> hullPoints;
 
 // Triangulation variables
 boolean showTriangulation;
-PVector triangulationColor;
 ArrayList<Edge> triangulationEdges;
 
 void setup()
@@ -143,7 +153,6 @@ void setup()
     hullPoints = new ArrayList<Point>();
     
     showTriangulation = false;
-    triangulationColor = new PVector(255, 0, 0);
     triangulationEdges = new ArrayList<Edge>();
     
     size(1280, 720);
@@ -199,11 +208,11 @@ void draw()
     
     if (showTriangulation)
     {
-        drawEdges(triangulationEdges, triangulationColor);
+        drawEdges(triangulationEdges, new PVector(255, 0, 0));
         
         if (!showHull)
         {
-            drawLines(points, hullColor);
+            drawLines(points, new PVector(0, 0, 255));
         }
     }
 }
@@ -350,7 +359,10 @@ ArrayList<Edge> pointsToEdges(ArrayList<Point> points)
             end = points.get(i + 1);
         }
         
-        edges.add(new Edge(start, end));
+        Edge edge = new Edge(start, end);
+        start.edgeStart = edge;
+        end.edgeEnd = edge;
+        edges.add(edge);
     }
     
     return edges;
@@ -522,24 +534,11 @@ void hullGraham() //<>//
     hullPoints.addAll(stack);
 }
 
-boolean sharesEdge(Point first, Point second, ArrayList<Edge> edges)
-{
-    for (Edge edge : edges)
-    {
-        if (edge.contains(first) && edge.contains(second))
-        {
-            return true;
-        }
-    }
-    
-    return false;
-}
-
 void triangulate(ArrayList<Point> body)
 {
     ArrayList<Point> points = new ArrayList<Point>();
     points.addAll(body);
-    ArrayList<Edge> edges = pointsToEdges(points);
+    pointsToEdges(points); // initialize edge variables inside points
     
     Collections.sort(points, new PositionComparator());
     
@@ -549,7 +548,7 @@ void triangulate(ArrayList<Point> body)
     
     for (int i = 2; i < points.size(); i++)
     {
-        if (sharesEdge(stack.peek(), points.get(i), edges))
+        if (stack.peek().sharesEdge(points.get(i)))
         {
             Point top = stack.pop();
             
