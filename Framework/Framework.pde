@@ -104,6 +104,32 @@ public class AngleComparator implements Comparator<Point>
     }
 };
 
+public class XComparator implements Comparator<Point>
+{
+    @Override
+    public int compare(Point first, Point second)
+    {
+        if (first.x < second.x)
+        {
+            return -1;
+        }
+        return 1;
+    }
+};
+
+public class YComparator implements Comparator<Point>
+{
+    @Override
+    public int compare(Point first, Point second)
+    {
+        if (first.y < second.y)
+        {
+            return -1;
+        }
+        return 1;
+    }
+};
+
 public class Edge
 {
     public Edge(Point start, Point end)
@@ -125,6 +151,108 @@ enum Path
 {
     Left,
     Right
+};
+
+public class KdNode
+{
+    public KdNode()
+    {
+        depth = 0;
+        id = null;
+        parent = null;
+        left = null;
+        right = null;
+    }
+    
+    public KdNode(int depth, Point id, KdNode parent, KdNode left, KdNode right)
+    {
+        this.depth = depth;
+        this.id = id;
+        this.parent = parent;
+        this.left = left;
+        this.right = right;
+    }
+    
+    int depth;
+    Point id;
+    KdNode parent;
+    KdNode left;
+    KdNode right;
+};
+
+public class KdTree
+{
+    public KdTree()
+    {
+        root = null;
+    }
+    
+    public KdTree(ArrayList<Point> points)
+    {
+        root = buildTreeRecursive(points, 0);
+    }
+    
+    private KdNode buildTreeRecursive(ArrayList<Point> points, int depth)
+    {
+        if (points.size() < 1)
+        {
+            return null;
+        }
+        
+        if (points.size() == 1)
+        {
+            KdNode newNode = new KdNode(depth, points.get(0), null, null, null);
+            return newNode;
+        }
+        
+        int medianIndex;
+        if (points.size() % 2 == 0)
+        {
+            medianIndex = points.size() / 2 - 1;
+        }
+        else
+        {
+            medianIndex = points.size() / 2;
+        }
+        
+        ArrayList<Point> firstPart = new ArrayList<Point>();
+        ArrayList<Point> secondPart = new ArrayList<Point>();
+        
+        if (depth % 2 == 0)
+        {
+            Collections.sort(points, new XComparator());
+        }
+        else
+        {
+            Collections.sort(points, new YComparator());
+        }
+        
+        for (int i = 0; i < medianIndex; i++)
+        {
+            firstPart.add(points.get(i));
+        }
+        for (int i = medianIndex + 1; i < points.size(); i++)
+        {
+            secondPart.add(points.get(i));
+        }
+        
+        KdNode left = buildTreeRecursive(firstPart, depth + 1);
+        KdNode right = buildTreeRecursive(secondPart, depth + 1);
+        
+        KdNode newNode = new KdNode(depth, points.get(medianIndex), null, left, right);
+        
+        if (left != null)
+        {
+            left.parent = newNode;
+        }
+        if (right != null)
+        {
+            right.parent = newNode;
+        }
+        return newNode;
+    }
+    
+    KdNode root;
 };
 
 // Basic variables
@@ -151,6 +279,10 @@ ArrayList<Point> hullPoints;
 boolean showTriangulation;
 ArrayList<Edge> triangulationEdges;
 
+// k-D tree variables
+boolean showTree;
+KdTree kdTree;
+
 void setup()
 {
     windowWidth = 1280;
@@ -173,6 +305,9 @@ void setup()
     showTriangulation = false;
     triangulationEdges = new ArrayList<Edge>();
     
+    showTree = false;
+    kdTree = new KdTree();
+    
     size(1280, 720);
     background(backgroundColor);
     fill(pointColor);
@@ -192,11 +327,12 @@ void draw()
         text("G - Generate 5 random points", 10, 100);
         text("C - Convex hull (Gift wrapping)", 10, 120);
         text("V - Convex hull (Graham Scan)", 10, 140);
-        text("T - Triangulation of a body defined by all points, the last added point will be automatically connected to the first", 10, 160);
+        text("T - Triangulation of a polygon defined by all points in order of their addition, the last added point will be automatically connected to the first, the polygon has to be y-monotone", 10, 160);
         text("T (after C/V) - Triangulation of convex hull", 10, 180);
-        text("R - Reload", 10, 200);
-        text("H - Toggle control hint", 10, 220);
-        text("P - Toggle points", 10, 240);
+        text("K - k-D tree", 10, 200);
+        text("R - Reload", 10, 220);
+        text("H - Toggle control hint", 10, 240);
+        text("P - Toggle points", 10, 260);
     }
     
     if (showPoints)
@@ -232,6 +368,11 @@ void draw()
     if (showHull)
     {
         drawLines(hullPoints, hullColor); //<>//
+    }
+    
+    if (showTree)
+    {
+        drawTree(kdTree);
     }
 }
 
@@ -331,6 +472,13 @@ void keyPressed()
         }
         showTriangulation = true;
     }
+    
+    // Compute k-D tree
+    if (key == 'k' && points.size() > 0)
+    {
+        buildTree(points);
+        showTree = true; //<>//
+    }
 }
 
 void generateRandomPoints(int count)
@@ -361,6 +509,9 @@ void clearStructures()
     
     triangulationEdges.clear();
     showTriangulation = false;
+    
+    kdTree = new KdTree();
+    showTree = false;
 }
 
 ArrayList<Edge> pointsToEdges(ArrayList<Point> points)
@@ -552,10 +703,10 @@ void hullGraham() //<>//
     hullPoints.addAll(stack);
 }
 
-void triangulate(ArrayList<Point> body)
+void triangulate(ArrayList<Point> polygon)
 {
     ArrayList<Point> points = new ArrayList<Point>();
-    points.addAll(body);
+    points.addAll(polygon);
     pointsToEdges(points); // initialize edge variables inside points
     
     Collections.sort(points, new PositionComparator());
@@ -624,4 +775,30 @@ void triangulate(ArrayList<Point> body)
         }
         stack.push(points.get(i));
     }
+}
+
+void buildTree(ArrayList<Point> points)
+{
+    ArrayList<Point> copy = new ArrayList<Point>();
+    copy.addAll(points);
+    kdTree = new KdTree(copy);
+}
+
+void drawLineHorizontal(Point point)
+{
+    stroke(255, 255, 0);
+    line(0, point.y, windowWidth, point.y);
+    stroke(pointColor);
+}
+
+void drawLineVertical(Point point)
+{
+    stroke(0, 255, 255);
+    line(point.x, 0, point.x, windowHeight);
+    stroke(pointColor);
+}
+
+void drawTree(KdTree kdTree)
+{
+    // to do
 }
