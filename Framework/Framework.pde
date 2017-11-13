@@ -220,11 +220,11 @@ public class KdTree
         
         if (depth % 2 == 0)
         {
-            Collections.sort(points, new XComparator());
+            Collections.sort(points, new YComparator());
         }
         else
         {
-            Collections.sort(points, new YComparator());
+            Collections.sort(points, new XComparator());
         }
         
         for (int i = 0; i < medianIndex; i++)
@@ -784,21 +784,78 @@ void buildTree(ArrayList<Point> points)
     kdTree = new KdTree(copy);
 }
 
-void drawLineHorizontal(Point point)
+void drawLineHorizontal(Point point, float startX, float endX)
 {
     stroke(255, 255, 0);
-    line(0, point.y, windowWidth, point.y);
+    strokeWeight(3);
+    line(startX, point.y, endX, point.y);
     stroke(pointColor);
+    strokeWeight(1);
 }
 
-void drawLineVertical(Point point)
+void drawLineVertical(Point point, float startY, float endY)
 {
     stroke(0, 255, 255);
-    line(point.x, 0, point.x, windowHeight);
+    strokeWeight(3);
+    line(point.x, startY, point.x, endY);
     stroke(pointColor);
+    strokeWeight(1);
 }
 
 void drawTree(KdTree kdTree)
 {
-    // to do
+    drawTreeRecursive(kdTree.root); //<>//
+}
+
+void drawTreeRecursive(KdNode node)
+{
+    if (node.left == null && node.right == null)
+    {
+        return;
+    }
+    
+    if (node.depth % 2 == 0)
+    {
+        float startX = 0.0f;
+        float endX = windowWidth;
+        if (node.parent != null)
+        {
+            if (node.parent.id.x > node.id.x)
+            {
+                endX = node.parent.id.x;
+            }
+            else
+            {
+                startX = node.parent.id.x;
+            }
+        }
+        drawLineHorizontal(node.id, startX, endX);
+    }
+    else
+    {
+        float startY = 0.0f;
+        float endY = windowHeight;
+        if (node.parent != null)
+        {
+            if (node.parent.id.y > node.id.y)
+            {
+                endY = node.parent.id.y;
+            }
+            else
+            {
+                startY = node.parent.id.y;
+            }
+        }
+        drawLineVertical(node.id, startY, endY);
+    }
+    
+    if (node.left != null)
+    {
+        drawTreeRecursive(node.left);
+    }
+    
+    if (node.right != null)
+    {
+        drawTreeRecursive(node.right);
+    }
 }
