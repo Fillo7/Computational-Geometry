@@ -5,6 +5,12 @@ import java.util.Comparator;
 import java.util.Objects;
 import java.util.Stack;
 
+enum Path
+{
+    Left,
+    Right
+};
+
 public class Point
 {
     public Point(float x, float y)
@@ -147,10 +153,27 @@ public class Edge
     Point end;
 };
 
-enum Path
+public class Circle
 {
-    Left,
-    Right
+    public Circle()
+    {
+       center = new Point(0.0f, 0.0f);
+       radius = 1.0f;
+    }
+    
+    public Circle(Point center, float radius)
+    {
+       this.center = center;
+       this.radius = radius;
+    }
+    
+    public boolean inside(Point point)
+    {
+        return getDistance(point, center) < radius;
+    }
+    
+    Point center;
+    float radius;
 };
 
 public class KdNode
@@ -370,6 +393,10 @@ ArrayList<Point> hullPoints;
 boolean showTriangulation;
 ArrayList<Edge> triangulationEdges;
 
+// Delaunay triangulation variables
+boolean showDelaunay;
+ArrayList<Edge> delaunayEdges;
+
 // k-D tree variables
 boolean showTree;
 KdTree kdTree;
@@ -396,6 +423,9 @@ void setup()
     showTriangulation = false;
     triangulationEdges = new ArrayList<Edge>();
     
+    showDelaunay = false;
+    delaunayEdges = new ArrayList<Edge>();
+    
     showTree = false;
     kdTree = new KdTree();
     
@@ -421,9 +451,10 @@ void draw()
         text("T - Triangulation of a polygon defined by all points in order of their addition, the last added point will be automatically connected to the first, the polygon has to be y-monotone", 10, 160);
         text("T (after C/V) - Triangulation of convex hull", 10, 180);
         text("K - k-D tree (points on lines belong to upper left part)", 10, 200);
-        text("R - Reload", 10, 220);
-        text("H - Toggle control hint", 10, 240);
-        text("P - Toggle points", 10, 260);
+        text("Y - Delaunay triangulation", 10, 220);
+        text("R - Reload", 10, 240);
+        text("H - Toggle control hint", 10, 260);
+        text("P - Toggle points", 10, 280);
     }
     
     if (showPoints)
@@ -449,6 +480,16 @@ void draw()
     if (showTriangulation)
     {
         drawEdges(triangulationEdges, new PVector(255, 0, 0));
+        
+        if (!showHull)
+        {
+            drawLines(points, new PVector(0, 0, 255));
+        }
+    }
+    
+    if (showDelaunay)
+    {
+        drawEdges(delaunayEdges, new PVector(255, 0, 0));
         
         if (!showHull)
         {
@@ -564,9 +605,24 @@ void keyPressed()
         showTriangulation = true;
     }
     
+    // Perform Delaunay triangulation
+    if (key == 'y' && points.size() > 2)
+    {
+        if (showHull)
+        {
+            triangulateDelaunay(hullPoints);
+        }
+        else
+        {
+            triangulateDelaunay(points);
+        }
+        showDelaunay = true;
+    }
+    
     // Compute k-D tree
     if (key == 'k' && points.size() > 0)
     {
+        clearStructures();
         buildTree(points);
         showTree = true;
     }
@@ -606,6 +662,9 @@ void clearStructures()
     
     triangulationEdges.clear();
     showTriangulation = false;
+    
+    delaunayEdges.clear();
+    showDelaunay = false;
     
     kdTree = new KdTree();
     showTree = false;
@@ -872,6 +931,47 @@ void triangulate(ArrayList<Point> polygon)
         }
         stack.push(points.get(i));
     }
+}
+
+float crossProduct(Point first, Point second, Point third)
+{
+    float u1 = second.x - first.x;
+    float v1 = second.y - first.y;
+    float u2 = third.x - first.x;
+    float v2 = third.y - first.y;
+    return u1 * v2 - v1 * u2;
+}
+
+Circle getCircumscribedCircle(Point first, Point second, Point third)
+{
+    float cross = crossProduct(first, second, third);
+    
+    if (cross == 0.0f)
+    {
+        return null; 
+    }
+    
+    float firstSq = first.x * first.x + first.y * first.y;
+    float secondSq = second.x * second.x + second.y * second.y;
+    float thirdSq = third.x * third.x + third.y * third.y;
+    
+    float helperX = firstSq * (second.y - third.y) + secondSq * (third.y - first.y) + thirdSq * (first.y - second.y);
+    float centerX = helperX / 2.0f * cross;
+    
+    float helperY = firstSq * (third.x - second.x) + secondSq * (first.x - third.x) + thirdSq * (second.x - first.x);
+    float centerY = helperY / 2.0f * cross;
+    
+    Point center = new Point(centerX, centerY);
+    float radius = getDistance(first, center);
+    
+    return new Circle(center, radius);
+}
+
+void triangulateDelaunay(ArrayList<Point> polygon)
+{
+    ArrayList<Point> points = new ArrayList<Point>();
+    points.addAll(polygon);
+    // to do
 }
 
 void buildTree(ArrayList<Point> points)
