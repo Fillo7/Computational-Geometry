@@ -420,7 +420,7 @@ void draw()
         text("V - Convex hull (Graham Scan)", 10, 140);
         text("T - Triangulation of a polygon defined by all points in order of their addition, the last added point will be automatically connected to the first, the polygon has to be y-monotone", 10, 160);
         text("T (after C/V) - Triangulation of convex hull", 10, 180);
-        text("K - k-D tree", 10, 200);
+        text("K - k-D tree (points on lines belong to upper left part)", 10, 200);
         text("R - Reload", 10, 220);
         text("H - Toggle control hint", 10, 240);
         text("P - Toggle points", 10, 260);
@@ -570,6 +570,12 @@ void keyPressed()
         buildTree(points);
         showTree = true;
     }
+}
+
+boolean floatEquals(float a, float b)
+{
+    float difference = Math.abs(a - b);
+    return difference <= Math.ulp(1.0f);
 }
 
 void generateRandomPoints(int count)
