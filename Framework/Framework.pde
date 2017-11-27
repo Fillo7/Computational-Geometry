@@ -2,8 +2,10 @@
 
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Stack;
+import java.util.Queue;
 
 enum Path
 {
@@ -142,6 +144,16 @@ public class Edge
     {
         this.start = start;
         this.end = end;
+        this.nextEdge = null;
+        this.oppositeTriangleEdge = null;
+    }
+    
+    public Edge(Point start, Point end, Edge nextEdge, Edge oppositeTriangleEdge)
+    {
+        this.start = start;
+        this.end = end;
+        this.nextEdge = nextEdge;
+        this.oppositeTriangleEdge = oppositeTriangleEdge;
     }
     
     public boolean contains(Point point)
@@ -149,8 +161,34 @@ public class Edge
         return point == start || point == end;
     }
     
+    public void swapOrientation()
+    {
+        Point swap = start;
+        start = end;
+        end = swap;
+    }
+    
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(start.hashCode() + end.hashCode());
+    }
+
+    @Override
+    public boolean equals(final Object other)
+    {
+        if (!(other instanceof Edge))
+        {
+            return false;
+        }
+        
+        return start.equals(((Edge)other).start) && end.equals(((Edge)other).end);
+    }
+    
     Point start;
     Point end;
+    Edge nextEdge;
+    Edge oppositeTriangleEdge;
 };
 
 public class Circle
@@ -490,11 +528,6 @@ void draw()
     if (showDelaunay)
     {
         drawEdges(delaunayEdges, new PVector(255, 0, 0));
-        
-        if (!showHull)
-        {
-            drawLines(points, new PVector(0, 0, 255));
-        }
     }
     
     if (showHull)
@@ -744,6 +777,11 @@ float getAngle(PVector first, PVector second)
    return acos(getCosine(first, second)); 
 }
 
+/* Possible results:
+ * = 0 - points lie on one line
+ * > 0 - points are oriented counter clockwise
+ * < 0 - points are oriented clockwise
+ */
 float getOrientation(Point first, Point second, Point third)
 {
     PVector firstToSecond = getVector(first, second);
@@ -967,11 +1005,131 @@ Circle getCircumscribedCircle(Point first, Point second, Point third)
     return new Circle(center, radius);
 }
 
+Point getClosestPoint(Point target, ArrayList<Point> points)
+{
+    Point result = null;
+    float distance = Float.MAX_VALUE;
+    
+    for (Point point : points)
+    {
+        float currentDistance = getDistance(target, point);
+        if (point != target && currentDistance < distance)
+        {
+            result = point;
+            distance = currentDistance;
+        }
+    }
+    
+    return result;
+}
+
+boolean isPositive(float number)
+{
+    return number >= 0.0f;
+}
+
+Point getClosestDelaunayDistancePoint(Edge target, ArrayList<Point> points)
+{
+    Point result = null;
+    float bestDistance = Float.MAX_VALUE;
+    
+    for (Point point : points)
+    {
+        if (getOrientation(target.start, target.end, point) <= 0.0f)
+        {
+            continue;
+        }
+        
+        Circle circle = getCircumscribedCircle(target.start, target.end, point);
+        float distance = getDistance(circle.center, point);
+        
+        if (isPositive(getOrientation(target.start, target.end, point)) != isPositive(getOrientation(target.start, target.end, circle.center)))
+        {
+           distance = -distance; 
+        }
+        
+        if (distance < bestDistance)
+        {
+            result = point;
+            bestDistance = distance;
+        }
+    }
+    
+    points.remove(result);
+    return result;
+}
+
 void triangulateDelaunay(ArrayList<Point> polygon)
 {
     ArrayList<Point> points = new ArrayList<Point>();
     points.addAll(polygon);
-    // to do
+    Queue<Edge> activeEdgeList = new LinkedList<Edge>();
+    
+    Point first = points.get(0);
+    Point second = getClosestPoint(first, points);
+    Edge firstEdge = new Edge(first, second);
+    
+    Point third = getClosestDelaunayDistancePoint(firstEdge, points);
+    
+    if (third == null)
+    {
+        firstEdge.swapOrientation();
+        third = getClosestDelaunayDistancePoint(firstEdge, points);
+    }
+    
+    Edge secondEdge = new Edge(firstEdge.end, third);
+    Edge thirdEdge = new Edge(third, firstEdge.start);
+    firstEdge.nextEdge = secondEdge;
+    secondEdge.nextEdge = thirdEdge;
+    thirdEdge.nextEdge = firstEdge;
+    
+    activeEdgeList.add(firstEdge);
+    activeEdgeList.add(secondEdge);
+    activeEdgeList.add(thirdEdge);
+    
+    while (!activeEdgeList.isEmpty())
+    {
+        Edge firstNew = new Edge(activeEdgeList.peek().start, activeEdgeList.peek().end);
+        firstNew.swapOrientation();
+        firstNew.oppositeTriangleEdge = activeEdgeList.peek();
+        activeEdgeList.peek().oppositeTriangleEdge = firstNew;
+        
+        Point point = getClosestDelaunayDistancePoint(firstNew, points);
+        if (point != null)
+        {
+            Edge secondNew = new Edge(firstNew.start, point);
+            Edge thirdNew = new Edge(point, firstNew.end);
+            firstNew.nextEdge = secondNew;
+            secondNew.nextEdge = thirdNew;
+            thirdNew.nextEdge = firstNew;
+            
+            Edge secondReverse = new Edge(point, firstNew.start);
+            if (activeEdgeList.contains(secondReverse))
+            {
+                activeEdgeList.remove(secondNew);
+            }
+            else
+            {
+                activeEdgeList.add(secondNew);
+            }
+            
+            Edge thirdReverse = new Edge(firstNew.end, point);
+            if (activeEdgeList.contains(thirdReverse))
+            {
+                activeEdgeList.remove(thirdNew);
+            }
+            else
+            {
+                activeEdgeList.add(thirdNew);
+            }
+            
+            delaunayEdges.add(secondNew);
+            delaunayEdges.add(thirdNew);
+        }
+        
+        delaunayEdges.add(firstNew);
+        activeEdgeList.poll();
+    }
 }
 
 void buildTree(ArrayList<Point> points)
