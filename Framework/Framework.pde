@@ -144,16 +144,6 @@ public class Edge
     {
         this.start = start;
         this.end = end;
-        this.nextEdge = null;
-        this.oppositeTriangleEdge = null;
-    }
-    
-    public Edge(Point start, Point end, Edge nextEdge, Edge oppositeTriangleEdge)
-    {
-        this.start = start;
-        this.end = end;
-        this.nextEdge = nextEdge;
-        this.oppositeTriangleEdge = oppositeTriangleEdge;
     }
     
     public boolean contains(Point point)
@@ -187,8 +177,6 @@ public class Edge
     
     Point start;
     Point end;
-    Edge nextEdge;
-    Edge oppositeTriangleEdge;
 };
 
 public class Circle
@@ -1050,86 +1038,57 @@ Point getClosestDelaunayDistancePoint(Edge target, ArrayList<Point> points)
         }
     }
     
-    points.remove(result);
     return result;
-}
-
-void AddToList(Edge newEdge, Queue<Edge> activeEdgeList)
-{
-    Edge reverse = new Edge(newEdge.end, newEdge.start);
-    
-    if (activeEdgeList.contains(reverse))
-    {
-        activeEdgeList.remove(newEdge);
-    }
-    else
-    {
-        activeEdgeList.add(newEdge);
-    }
-    delaunayEdges.add(newEdge);
 }
 
 void triangulateDelaunay(ArrayList<Point> polygon)
 {
-    ArrayList<Point> points = new ArrayList<Point>();
-    points.addAll(polygon);
     Queue<Edge> activeEdgeList = new LinkedList<Edge>();
     
-    Point first = points.get(0);
-    points.remove(first);
-    Point second = getClosestPoint(first, points);
-    points.remove(second);
+    Point first = polygon.get(0);
+    Point second = getClosestPoint(first, polygon);
     Edge firstEdge = new Edge(first, second);
     
-    Point third = getClosestDelaunayDistancePoint(firstEdge, points);
+    Point third = getClosestDelaunayDistancePoint(firstEdge, polygon);
     
     if (third == null)
     {
         firstEdge.swapOrientation();
-        third = getClosestDelaunayDistancePoint(firstEdge, points);
+        third = getClosestDelaunayDistancePoint(firstEdge, polygon);
     }
     
     Edge secondEdge = new Edge(firstEdge.end, third);
     Edge thirdEdge = new Edge(third, firstEdge.start);
-    firstEdge.nextEdge = secondEdge;
-    secondEdge.nextEdge = thirdEdge;
-    thirdEdge.nextEdge = firstEdge;
     
-    AddToList(firstEdge, activeEdgeList);
-    AddToList(secondEdge, activeEdgeList);
-    AddToList(thirdEdge, activeEdgeList);
+    activeEdgeList.add(firstEdge);
+    activeEdgeList.add(secondEdge);
+    activeEdgeList.add(thirdEdge);
     
     while (!activeEdgeList.isEmpty())
     {
-        Edge firstNew = new Edge(activeEdgeList.peek().start, activeEdgeList.peek().end);
+        Edge firstNew = activeEdgeList.poll();
         firstNew.swapOrientation();
-        firstNew.oppositeTriangleEdge = activeEdgeList.peek();
-        activeEdgeList.peek().oppositeTriangleEdge = firstNew;
         
-        Point point = getClosestDelaunayDistancePoint(firstNew, points);
+        Point point = getClosestDelaunayDistancePoint(firstNew, polygon);
         if (point != null)
         {
             Edge secondNew = new Edge(firstNew.end, point);
             Edge thirdNew = new Edge(point, firstNew.start);
-            firstNew.nextEdge = secondNew;
-            secondNew.nextEdge = thirdNew;
-            thirdNew.nextEdge = firstNew;
             
             Edge secondReverse = new Edge(point, firstNew.end);
-            if (!activeEdgeList.contains(secondNew) || !activeEdgeList.contains(secondReverse) || !delaunayEdges.contains(secondNew) || !delaunayEdges.contains(secondReverse))
+            if (!activeEdgeList.contains(secondNew) && !activeEdgeList.contains(secondReverse) && !delaunayEdges.contains(secondNew) && !delaunayEdges.contains(secondReverse))
             {
-                AddToList(secondNew, activeEdgeList);
+                activeEdgeList.add(secondNew);
             }
             
             Edge thirdReverse = new Edge(firstNew.start, point);
-            if (!activeEdgeList.contains(thirdNew) || !activeEdgeList.contains(thirdReverse) || !delaunayEdges.contains(thirdNew) || !delaunayEdges.contains(thirdReverse))
+            if (!activeEdgeList.contains(thirdNew) && !activeEdgeList.contains(thirdReverse) && !delaunayEdges.contains(thirdNew) && !delaunayEdges.contains(thirdReverse))
             {
-                AddToList(thirdNew, activeEdgeList);
+                activeEdgeList.add(thirdNew);
             }
         }
         
         delaunayEdges.add(firstNew);
-        activeEdgeList.poll();
     }
 }
 
