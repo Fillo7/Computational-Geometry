@@ -400,7 +400,6 @@ int windowWidth; // window resolution in size() method needs to be modified sepa
 int windowHeight;
 int backgroundColor;
 int pointColor;
-boolean showHint;
 
 // Point variables
 boolean showPoints;
@@ -433,7 +432,6 @@ void setup()
     windowHeight = 720;
     backgroundColor = 255;
     pointColor = 0;
-    showHint = true;
     
     showPoints = true;
     pointSelected = false;
@@ -464,24 +462,6 @@ void setup()
 void draw()
 {
     background(backgroundColor);
-    
-    if (showHint)
-    {
-        text("Controls:", 10, 20); 
-        text("A - Add new point under mouse cursor", 10, 40);
-        text("D - Delete existing point under mouse cursor", 10, 60);
-        text("Mouse click - Drag existing point to another place", 10, 80);
-        text("G - Generate 5 random points", 10, 100);
-        text("C - Convex hull (Gift wrapping)", 10, 120);
-        text("V - Convex hull (Graham Scan)", 10, 140);
-        text("T - Triangulation of a polygon defined by all points in order of their addition, the last added point will be automatically connected to the first, the polygon has to be y-monotone", 10, 160);
-        text("T (after C/V) - Triangulation of convex hull", 10, 180);
-        text("K - k-D tree (points on lines belong to upper left part)", 10, 200);
-        text("Y - Delaunay triangulation", 10, 220);
-        text("R - Reload", 10, 240);
-        text("H - Toggle control hint", 10, 260);
-        text("P - Toggle points", 10, 280);
-    }
     
     if (showPoints)
     {
@@ -580,12 +560,6 @@ void keyPressed()
     {
         generateRandomPoints(5);
         clearStructures();
-    }
-    
-    // Toggle hint
-    if (key == 'h')
-    {
-        showHint = !showHint;
     }
     
     // Toggle points
