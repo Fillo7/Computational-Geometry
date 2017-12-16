@@ -208,7 +208,7 @@ public class Circle
     public boolean inside(Point point)
     {
         return getDistance(point, center) < radius;
-    }
+    } //<>//
     
     Point center;
     float radius;
@@ -527,7 +527,7 @@ void draw()
     
     if (showDelaunay)
     {
-        drawEdges(delaunayEdges, new PVector(255, 0, 0));
+        drawEdges(delaunayEdges, new PVector(255, 0, 0)); //<>//
     }
     
     if (showHull)
@@ -779,8 +779,8 @@ float getAngle(PVector first, PVector second)
 
 /* Possible results:
  * = 0 - points lie on one line
- * > 0 - points are oriented counter clockwise
- * < 0 - points are oriented clockwise
+ * > 0 - points are oriented clockwise
+ * < 0 - points are oriented counter-clockwise
  */
 float getOrientation(Point first, Point second, Point third)
 {
@@ -994,10 +994,10 @@ Circle getCircumscribedCircle(Point first, Point second, Point third)
     float thirdSq = third.x * third.x + third.y * third.y;
     
     float helperX = firstSq * (second.y - third.y) + secondSq * (third.y - first.y) + thirdSq * (first.y - second.y);
-    float centerX = helperX / 2.0f * cross;
+    float centerX = helperX / (2.0f * cross);
     
     float helperY = firstSq * (third.x - second.x) + secondSq * (first.x - third.x) + thirdSq * (second.x - first.x);
-    float centerY = helperY / 2.0f * cross;
+    float centerY = helperY / (2.0f * cross);
     
     Point center = new Point(centerX, centerY);
     float radius = getDistance(first, center);
@@ -1013,7 +1013,7 @@ Point getClosestPoint(Point target, ArrayList<Point> points)
     for (Point point : points)
     {
         float currentDistance = getDistance(target, point);
-        if (point != target && currentDistance < distance)
+        if (!point.equals(target) && currentDistance < distance)
         {
             result = point;
             distance = currentDistance;
@@ -1023,11 +1023,6 @@ Point getClosestPoint(Point target, ArrayList<Point> points)
     return result;
 }
 
-boolean isPositive(float number)
-{
-    return number >= 0.0f;
-}
-
 Point getClosestDelaunayDistancePoint(Edge target, ArrayList<Point> points)
 {
     Point result = null;
@@ -1035,7 +1030,7 @@ Point getClosestDelaunayDistancePoint(Edge target, ArrayList<Point> points)
     
     for (Point point : points)
     {
-        if (getOrientation(target.start, target.end, point) <= 0.0f)
+        if (getOrientation(target.start, target.end, point) >= 0.0f)
         {
             continue;
         }
@@ -1043,9 +1038,9 @@ Point getClosestDelaunayDistancePoint(Edge target, ArrayList<Point> points)
         Circle circle = getCircumscribedCircle(target.start, target.end, point);
         float distance = getDistance(circle.center, point);
         
-        if (isPositive(getOrientation(target.start, target.end, point)) != isPositive(getOrientation(target.start, target.end, circle.center)))
+        if (getOrientation(target.start, target.end, circle.center) > 0.0f)
         {
-           distance = -distance; 
+            distance = -distance;
         }
         
         if (distance < bestDistance)
@@ -1059,6 +1054,21 @@ Point getClosestDelaunayDistancePoint(Edge target, ArrayList<Point> points)
     return result;
 }
 
+void AddToList(Edge newEdge, Queue<Edge> activeEdgeList)
+{
+    Edge reverse = new Edge(newEdge.end, newEdge.start);
+    
+    if (activeEdgeList.contains(reverse))
+    {
+        activeEdgeList.remove(newEdge);
+    }
+    else
+    {
+        activeEdgeList.add(newEdge);
+    }
+    delaunayEdges.add(newEdge);
+}
+
 void triangulateDelaunay(ArrayList<Point> polygon)
 {
     ArrayList<Point> points = new ArrayList<Point>();
@@ -1066,7 +1076,9 @@ void triangulateDelaunay(ArrayList<Point> polygon)
     Queue<Edge> activeEdgeList = new LinkedList<Edge>();
     
     Point first = points.get(0);
+    points.remove(first);
     Point second = getClosestPoint(first, points);
+    points.remove(second);
     Edge firstEdge = new Edge(first, second);
     
     Point third = getClosestDelaunayDistancePoint(firstEdge, points);
@@ -1083,9 +1095,9 @@ void triangulateDelaunay(ArrayList<Point> polygon)
     secondEdge.nextEdge = thirdEdge;
     thirdEdge.nextEdge = firstEdge;
     
-    activeEdgeList.add(firstEdge);
-    activeEdgeList.add(secondEdge);
-    activeEdgeList.add(thirdEdge);
+    AddToList(firstEdge, activeEdgeList);
+    AddToList(secondEdge, activeEdgeList);
+    AddToList(thirdEdge, activeEdgeList);
     
     while (!activeEdgeList.isEmpty())
     {
@@ -1097,34 +1109,23 @@ void triangulateDelaunay(ArrayList<Point> polygon)
         Point point = getClosestDelaunayDistancePoint(firstNew, points);
         if (point != null)
         {
-            Edge secondNew = new Edge(firstNew.start, point);
-            Edge thirdNew = new Edge(point, firstNew.end);
+            Edge secondNew = new Edge(firstNew.end, point);
+            Edge thirdNew = new Edge(point, firstNew.start);
             firstNew.nextEdge = secondNew;
             secondNew.nextEdge = thirdNew;
             thirdNew.nextEdge = firstNew;
             
-            Edge secondReverse = new Edge(point, firstNew.start);
-            if (activeEdgeList.contains(secondReverse))
+            Edge secondReverse = new Edge(point, firstNew.end);
+            if (!activeEdgeList.contains(secondNew) || !activeEdgeList.contains(secondReverse) || !delaunayEdges.contains(secondNew) || !delaunayEdges.contains(secondReverse))
             {
-                activeEdgeList.remove(secondNew);
-            }
-            else
-            {
-                activeEdgeList.add(secondNew);
+                AddToList(secondNew, activeEdgeList);
             }
             
-            Edge thirdReverse = new Edge(firstNew.end, point);
-            if (activeEdgeList.contains(thirdReverse))
+            Edge thirdReverse = new Edge(firstNew.start, point);
+            if (!activeEdgeList.contains(thirdNew) || !activeEdgeList.contains(thirdReverse) || !delaunayEdges.contains(thirdNew) || !delaunayEdges.contains(thirdReverse))
             {
-                activeEdgeList.remove(thirdNew);
+                AddToList(thirdNew, activeEdgeList);
             }
-            else
-            {
-                activeEdgeList.add(thirdNew);
-            }
-            
-            delaunayEdges.add(secondNew);
-            delaunayEdges.add(thirdNew);
         }
         
         delaunayEdges.add(firstNew);
