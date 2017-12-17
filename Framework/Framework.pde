@@ -58,6 +58,11 @@ public class Point
         return path == other.path;
     }
     
+    public boolean onScreen()
+    {
+        return x >= 0.0f && x <= windowWidth && y >= 0.0f && y <= windowHeight;
+    }
+    
     @Override
     public int hashCode()
     {
@@ -144,6 +149,8 @@ public class Edge
     {
         this.start = start;
         this.end = end;
+        this.circleCenter = null;
+        voronoiDrawn = false;
     }
     
     public boolean contains(Point point)
@@ -156,6 +163,21 @@ public class Edge
         Point swap = start;
         start = end;
         end = swap;
+    }
+    
+    public boolean sharesPoints(Edge other)
+    {
+        return start.equals(other.start) && end.equals(other.end) || start.equals(other.end) && end.equals(other.start);
+    }
+    
+    public Point getNearestPoint(Point other)
+    {
+        PVector unitVector = new PVector(end.x - start.x, end.y - start.y);
+        unitVector.normalize();
+        PVector lp = new PVector(other.x - start.x, other.y - start.y);
+        double lambda = unitVector.dot(lp);
+        PVector vv = unitVector.mult((float)lambda);
+        return new Point(start.x + vv.x, start.y + vv.y);
     }
     
     @Override
@@ -177,6 +199,8 @@ public class Edge
     
     Point start;
     Point end;
+    Point circleCenter;
+    boolean voronoiDrawn;
 };
 
 public class Circle
@@ -196,10 +220,76 @@ public class Circle
     public boolean inside(Point point)
     {
         return getDistance(point, center) < radius;
-    } //<>//
+    }
     
     Point center;
     float radius;
+};
+
+public class Triangle
+{
+    public Triangle()
+    {
+        this.first = null;
+        this.second = null;
+        this.third = null;
+        this.circleCenter = null;
+    }
+  
+    public Triangle(Edge first, Edge second, Edge third)
+    {
+        this.first = first;
+        this.second = second;
+        this.third = third;
+        this.circleCenter = null;
+    }
+    
+    public Triangle(Edge first, Edge second, Edge third, Point circleCenter)
+    {
+        this.first = first;
+        this.second = second;
+        this.third = third;
+        this.circleCenter = circleCenter;
+    }
+    
+    public Edge getSharedEdge(Triangle other)
+    {
+        if (first.sharesPoints(other.first) || first.sharesPoints(other.second) || first.sharesPoints(other.third))
+        {
+            return first;
+        }
+        else if (second.sharesPoints(other.first) || second.sharesPoints(other.second) || second.sharesPoints(other.third))
+        {
+            return second;
+        }
+        else if (third.sharesPoints(other.first) || third.sharesPoints(other.second) || third.sharesPoints(other.third))
+        {
+            return third;
+        }
+        return null;
+    }
+    
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(first.hashCode() + second.hashCode() + third.hashCode() + circleCenter.hashCode());
+    }
+
+    @Override
+    public boolean equals(final Object other)
+    {
+        if (!(other instanceof Triangle))
+        {
+            return false;
+        }
+        
+        return first.equals(((Triangle)other).first) && second.equals(((Triangle)other).second) && third.equals(((Triangle)other).third) && circleCenter.equals(((Triangle)other).circleCenter);
+    }
+    
+    Edge first;
+    Edge second;
+    Edge third;
+    Point circleCenter;
 };
 
 public class KdNode
@@ -343,7 +433,7 @@ public class KdTree
         }
         
         stroke(pointColor);
-        strokeWeight(1); //<>//
+        strokeWeight(1);
     }
     
     private Point findIntersectionHorizontal(Point originPoint)
@@ -422,6 +512,10 @@ ArrayList<Edge> triangulationEdges;
 boolean showDelaunay;
 ArrayList<Edge> delaunayEdges;
 
+// Voronoi diagram variables
+boolean showVoronoi;
+ArrayList<Triangle> delaunayTriangles;
+
 // k-D tree variables
 boolean showTree;
 KdTree kdTree;
@@ -449,6 +543,9 @@ void setup()
     
     showDelaunay = false;
     delaunayEdges = new ArrayList<Edge>();
+    
+    showVoronoi = false;
+    delaunayTriangles = new ArrayList<Triangle>();
     
     showTree = false;
     kdTree = new KdTree();
@@ -495,7 +592,12 @@ void draw()
     
     if (showDelaunay)
     {
-        drawEdges(delaunayEdges, new PVector(255, 0, 0)); //<>//
+        drawEdges(delaunayEdges, new PVector(255, 0, 0));
+        
+        if (showVoronoi)
+        {
+            drawVoronoi(delaunayTriangles, new PVector(0, 150, 0));
+        }
     }
     
     if (showHull)
@@ -505,7 +607,7 @@ void draw()
     
     if (showTree)
     {
-        kdTree.drawEdges(); //<>//
+        kdTree.drawEdges();
     }
 }
 
@@ -614,6 +716,12 @@ void keyPressed()
         showDelaunay = true;
     }
     
+    // Draw Voronoi diagram
+    if (key == 'u' && showDelaunay)
+    {
+        showVoronoi = true;
+    }
+    
     // Compute k-D tree
     if (key == 'k' && points.size() > 0)
     {
@@ -660,6 +768,9 @@ void clearStructures()
     
     delaunayEdges.clear();
     showDelaunay = false;
+    
+    delaunayTriangles.clear();
+    showVoronoi = false;
     
     kdTree = new KdTree();
     showTree = false;
@@ -1009,6 +1120,7 @@ Point getClosestDelaunayDistancePoint(Edge target, ArrayList<Point> points)
         {
             result = point;
             bestDistance = distance;
+            target.circleCenter = circle.center;
         }
     }
     
@@ -1037,6 +1149,7 @@ void triangulateDelaunay(ArrayList<Point> polygon)
     activeEdgeList.add(firstEdge);
     activeEdgeList.add(secondEdge);
     activeEdgeList.add(thirdEdge);
+    delaunayTriangles.add(new Triangle(firstEdge, secondEdge, thirdEdge, firstEdge.circleCenter));
     
     while (!activeEdgeList.isEmpty())
     {
@@ -1048,6 +1161,7 @@ void triangulateDelaunay(ArrayList<Point> polygon)
         {
             Edge secondNew = new Edge(firstNew.end, point);
             Edge thirdNew = new Edge(point, firstNew.start);
+            delaunayTriangles.add(new Triangle(firstNew, secondNew, thirdNew, firstNew.circleCenter));
             
             Edge secondReverse = new Edge(point, firstNew.end);
             if (!activeEdgeList.contains(secondNew) && !activeEdgeList.contains(secondReverse) && !delaunayEdges.contains(secondNew) && !delaunayEdges.contains(secondReverse))
@@ -1063,6 +1177,64 @@ void triangulateDelaunay(ArrayList<Point> polygon)
         }
         
         delaunayEdges.add(firstNew);
+    }
+}
+
+void drawVoronoi(ArrayList<Triangle> triangles, PVector lineColor)
+{
+    stroke(lineColor.x, lineColor.y, lineColor.z);
+    fill(lineColor.x, lineColor.y, lineColor.z);
+    
+    for (Triangle triangle : triangles)
+    {
+        for (Triangle other : triangles)
+        {
+            if (triangle.equals(other))
+            {
+                continue;
+            }
+            
+            Edge shared = triangle.getSharedEdge(other);
+            if (shared == null)
+            {
+                continue;
+            }
+            
+            shared.voronoiDrawn = true;
+            ellipse(triangle.circleCenter.x, triangle.circleCenter.y, pointRadius * 1.5f, pointRadius * 1.5f);
+            ellipse(other.circleCenter.x, other.circleCenter.y, pointRadius * 1.5f, pointRadius * 1.5f);
+            line(triangle.circleCenter.x, triangle.circleCenter.y, other.circleCenter.x, other.circleCenter.y);
+        }
+    }
+    
+    stroke(pointColor);
+    fill(pointColor);
+    
+    for (Triangle triangle : triangles)
+    {
+        if (!triangle.first.voronoiDrawn && triangle.circleCenter.onScreen())
+        {
+            Point intersection = triangle.first.getNearestPoint(triangle.circleCenter);
+            PVector vector = new PVector(intersection.x - triangle.circleCenter.x, intersection.y - triangle.circleCenter.y);
+            vector.mult(100.0f);
+            line(triangle.circleCenter.x, triangle.circleCenter.y, vector.x, vector.y);
+        }
+        
+        if (!triangle.second.voronoiDrawn && triangle.circleCenter.onScreen())
+        {
+            Point intersection = triangle.second.getNearestPoint(triangle.circleCenter);
+            PVector vector = new PVector(intersection.x - triangle.circleCenter.x, intersection.y - triangle.circleCenter.y);
+            vector.mult(100.0f);
+            line(triangle.circleCenter.x, triangle.circleCenter.y, vector.x, vector.y);
+        }
+        
+        if (!triangle.third.voronoiDrawn && triangle.circleCenter.onScreen())
+        {
+            Point intersection = triangle.third.getNearestPoint(triangle.circleCenter);
+            PVector vector = new PVector(intersection.x - triangle.circleCenter.x, intersection.y - triangle.circleCenter.y);
+            vector.mult(100.0f);
+            line(triangle.circleCenter.x, triangle.circleCenter.y, vector.x, vector.y);
+        }
     }
 }
 
