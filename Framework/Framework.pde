@@ -1,5 +1,6 @@
 // Author: Filip Petrovic (422334)
 
+import java.awt.geom.Line2D;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedList;
@@ -150,7 +151,7 @@ public class Edge
         this.start = start;
         this.end = end;
         this.circleCenter = null;
-        voronoiDrawn = false;
+        onConvexHull = true;
     }
     
     public boolean contains(Point point)
@@ -180,6 +181,23 @@ public class Edge
         return new Point(start.x + vv.x, start.y + vv.y);
     }
     
+    int getIntersections(ArrayList<Edge> edges)
+    {
+        int result = 0;
+        Line2D current = new Line2D.Float(start.x, end.x, start.y, end.y);
+        
+        for (Edge other : edges)
+        {
+            Line2D otherLine = new Line2D.Float(other.start.x, other.end.x, other.start.y, other.end.y);
+            if (current.intersectsLine(otherLine))
+            {
+                result++;
+            }
+        }
+        
+        return result;
+    }
+    
     @Override
     public int hashCode()
     {
@@ -200,7 +218,7 @@ public class Edge
     Point start;
     Point end;
     Point circleCenter;
-    boolean voronoiDrawn;
+    boolean onConvexHull;
 };
 
 public class Circle
@@ -515,6 +533,8 @@ ArrayList<Edge> delaunayEdges;
 // Voronoi diagram variables
 boolean showVoronoi;
 ArrayList<Triangle> delaunayTriangles;
+ArrayList<Edge> voronoiEdges;
+ArrayList<Point> voronoiPoints;
 
 // k-D tree variables
 boolean showTree;
@@ -546,6 +566,8 @@ void setup()
     
     showVoronoi = false;
     delaunayTriangles = new ArrayList<Triangle>();
+    voronoiEdges = new ArrayList<Edge>();
+    voronoiPoints = new ArrayList<Point>();
     
     showTree = false;
     kdTree = new KdTree();
@@ -596,7 +618,7 @@ void draw()
         
         if (showVoronoi)
         {
-            drawVoronoi(delaunayTriangles, new PVector(0, 150, 0));
+            drawVoronoi(new PVector(0, 150, 0));
         }
     }
     
@@ -719,6 +741,7 @@ void keyPressed()
     // Draw Voronoi diagram
     if (key == 'u' && showDelaunay)
     {
+        calculateVoronoi(delaunayTriangles);
         showVoronoi = true;
     }
     
@@ -770,6 +793,8 @@ void clearStructures()
     showDelaunay = false;
     
     delaunayTriangles.clear();
+    voronoiEdges.clear();
+    voronoiPoints.clear();
     showVoronoi = false;
     
     kdTree = new KdTree();
@@ -1180,11 +1205,8 @@ void triangulateDelaunay(ArrayList<Point> polygon)
     }
 }
 
-void drawVoronoi(ArrayList<Triangle> triangles, PVector lineColor)
+void calculateVoronoi(ArrayList<Triangle> triangles)
 {
-    stroke(lineColor.x, lineColor.y, lineColor.z);
-    fill(lineColor.x, lineColor.y, lineColor.z);
-    
     for (Triangle triangle : triangles)
     {
         for (Triangle other : triangles)
@@ -1200,42 +1222,63 @@ void drawVoronoi(ArrayList<Triangle> triangles, PVector lineColor)
                 continue;
             }
             
-            shared.voronoiDrawn = true;
-            ellipse(triangle.circleCenter.x, triangle.circleCenter.y, pointRadius * 1.5f, pointRadius * 1.5f);
-            ellipse(other.circleCenter.x, other.circleCenter.y, pointRadius * 1.5f, pointRadius * 1.5f);
-            line(triangle.circleCenter.x, triangle.circleCenter.y, other.circleCenter.x, other.circleCenter.y);
+            shared.onConvexHull = false;
+            voronoiPoints.add(new Point(triangle.circleCenter.x, triangle.circleCenter.y));
+            voronoiPoints.add(new Point(other.circleCenter.x, other.circleCenter.y));
+            voronoiEdges.add(new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(other.circleCenter.x, other.circleCenter.y)));
         }
     }
     
-    stroke(pointColor);
-    fill(pointColor);
-    
     for (Triangle triangle : triangles)
     {
-        if (!triangle.first.voronoiDrawn && triangle.circleCenter.onScreen())
+        if (!triangle.circleCenter.onScreen())
+        {
+            continue;
+        }
+      
+        if (triangle.first.onConvexHull)
         {
             Point intersection = triangle.first.getNearestPoint(triangle.circleCenter);
             PVector vector = new PVector(intersection.x - triangle.circleCenter.x, intersection.y - triangle.circleCenter.y);
             vector.mult(100.0f);
-            line(triangle.circleCenter.x, triangle.circleCenter.y, vector.x, vector.y);
+            voronoiEdges.add(new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(vector.x, vector.y)));
         }
         
-        if (!triangle.second.voronoiDrawn && triangle.circleCenter.onScreen())
+        if (triangle.second.onConvexHull)
         {
             Point intersection = triangle.second.getNearestPoint(triangle.circleCenter);
             PVector vector = new PVector(intersection.x - triangle.circleCenter.x, intersection.y - triangle.circleCenter.y);
             vector.mult(100.0f);
-            line(triangle.circleCenter.x, triangle.circleCenter.y, vector.x, vector.y);
+            voronoiEdges.add(new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(vector.x, vector.y)));
         }
         
-        if (!triangle.third.voronoiDrawn && triangle.circleCenter.onScreen())
+        if (triangle.third.onConvexHull)
         {
             Point intersection = triangle.third.getNearestPoint(triangle.circleCenter);
             PVector vector = new PVector(intersection.x - triangle.circleCenter.x, intersection.y - triangle.circleCenter.y);
             vector.mult(100.0f);
-            line(triangle.circleCenter.x, triangle.circleCenter.y, vector.x, vector.y);
+            voronoiEdges.add(new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(vector.x, vector.y)));
         }
     }
+}
+
+void drawVoronoi(PVector voronoiColor)
+{
+    stroke(voronoiColor.x, voronoiColor.y, voronoiColor.z);
+    fill(voronoiColor.x, voronoiColor.y, voronoiColor.z);
+    
+    for (Point point : voronoiPoints)
+    {
+        ellipse(point.x, point.y, pointRadius * 1.5f, pointRadius * 1.5f);
+    }
+    
+    for (Edge edge: voronoiEdges)
+    {
+        line(edge.start.x, edge.start.y, edge.end.x, edge.end.y);
+    }
+    
+    stroke(pointColor);
+    fill(pointColor);
 }
 
 void buildTree(ArrayList<Point> points)
