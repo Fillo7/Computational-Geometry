@@ -1,6 +1,7 @@
 // Author: Filip Petrovic (422334)
 
 import java.awt.geom.Line2D;
+import java.awt.Polygon;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedList;
@@ -173,25 +174,61 @@ public class Edge
     
     public Point getNearestPoint(Point other)
     {
-        PVector unitVector = new PVector(end.x - start.x, end.y - start.y);
-        unitVector.normalize();
-        PVector lp = new PVector(other.x - start.x, other.y - start.y);
-        double lambda = unitVector.dot(lp);
-        PVector vv = unitVector.mult((float)lambda);
-        return new Point(start.x + vv.x, start.y + vv.y);
+        double apx = other.x - start.x;
+        double apy = other.y - start.y;
+        double abx = end.x - start.x;
+        double aby = end.y - start.y;
+    
+        double ab2 = abx * abx + aby * aby;
+        double apab = apx * abx + apy * aby;
+        double t = apab / ab2;
+
+        Point result = new Point((float)(start.x + abx * t), (float)(start.y + aby * t));
+        return result;
     }
     
-    int getIntersections(ArrayList<Edge> edges)
+    Point getIntersection(Edge other)
     {
-        int result = 0;
-        Line2D current = new Line2D.Float(start.x, end.x, start.y, end.y);
+        double a1 = end.y - start.y;
+        double b1 = start.x - end.x;
+        double c1 = a1 * start.x + b1 * start.y;
+      
+        double a2 = other.end.y - other.start.y;
+        double b2 = other.start.x - other.end.x;
+        double c2 = a2 * other.start.x + b2 * other.start.y;
+      
+        double determinant = a1 * b2 - a2 * b1;
+      
+        if (determinant == 0)
+        {
+            return null;
+        }
+        else
+        {
+            double x = (b2 * c1 - b1 * c2) / determinant;
+            double y = (a1 * c2 - a2 * c1) / determinant;
+            return new Point((float)x, (float)y);
+        }
+    }
+    
+    Edge getClosestIntersectingEdge(ArrayList<Edge> edges)
+    {
+        Edge result = null;
+        float shortestDistance = Float.MAX_VALUE;
+        Line2D current = new Line2D.Float(start.x, start.y, end.x, end.y);
         
         for (Edge other : edges)
         {
-            Line2D otherLine = new Line2D.Float(other.start.x, other.end.x, other.start.y, other.end.y);
+            Line2D otherLine = new Line2D.Float(other.start.x, other.start.y, other.end.x, other.end.y);
             if (current.intersectsLine(otherLine))
             {
-                result++;
+                Point intersection = getIntersection(other);
+                float distance = getLength(getVector(start, intersection));
+                if (distance < shortestDistance)
+                {
+                    result = other;
+                    shortestDistance = distance;
+                }
             }
         }
         
@@ -285,6 +322,29 @@ public class Triangle
             return third;
         }
         return null;
+    }
+    
+    boolean pointInside(Point point)
+    {
+        Polygon area = new Polygon();
+        area.addPoint((int)first.start.x, (int)first.start.y);
+        area.addPoint((int)first.end.x, (int)first.end.y);
+        
+        if (second.start.equals(first.start) || second.start.equals(first.end))
+        {
+            area.addPoint((int)second.end.x, (int)second.end.y);
+        }
+        else
+        {
+            area.addPoint((int)second.start.x, (int)second.start.y);
+        }
+        
+        if (area.contains(point.x, point.y))
+        {
+            return true;
+        }
+        
+        return false;
     }
     
     @Override
@@ -1241,6 +1301,17 @@ void calculateVoronoi(ArrayList<Triangle> triangles)
             Point intersection = triangle.first.getNearestPoint(triangle.circleCenter);
             PVector vector = new PVector(intersection.x - triangle.circleCenter.x, intersection.y - triangle.circleCenter.y);
             vector.mult(100.0f);
+            
+            Edge test = new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(vector.x, vector.y));
+            if (!triangle.pointInside(triangle.circleCenter))
+            {
+                Edge closestIntersecting = test.getClosestIntersectingEdge(delaunayEdges);
+                if (closestIntersecting != null && closestIntersecting.sharesPoints(triangle.first))
+                {
+                    vector.mult(-1.0f);
+                }
+            }
+            
             voronoiEdges.add(new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(vector.x, vector.y)));
         }
         
@@ -1249,6 +1320,17 @@ void calculateVoronoi(ArrayList<Triangle> triangles)
             Point intersection = triangle.second.getNearestPoint(triangle.circleCenter);
             PVector vector = new PVector(intersection.x - triangle.circleCenter.x, intersection.y - triangle.circleCenter.y);
             vector.mult(100.0f);
+            
+            Edge test = new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(vector.x, vector.y));
+            if (!triangle.pointInside(triangle.circleCenter))
+            {
+                Edge closestIntersecting = test.getClosestIntersectingEdge(delaunayEdges);
+                if (closestIntersecting != null && closestIntersecting.sharesPoints(triangle.second))
+                {
+                    vector.mult(-1.0f);
+                }
+            }
+            
             voronoiEdges.add(new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(vector.x, vector.y)));
         }
         
@@ -1257,6 +1339,17 @@ void calculateVoronoi(ArrayList<Triangle> triangles)
             Point intersection = triangle.third.getNearestPoint(triangle.circleCenter);
             PVector vector = new PVector(intersection.x - triangle.circleCenter.x, intersection.y - triangle.circleCenter.y);
             vector.mult(100.0f);
+            
+            Edge test = new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(vector.x, vector.y));
+            if (!triangle.pointInside(triangle.circleCenter))
+            {
+                Edge closestIntersecting = test.getClosestIntersectingEdge(delaunayEdges);
+                if (closestIntersecting != null && closestIntersecting.sharesPoints(triangle.third))
+                {
+                    vector.mult(-1.0f);
+                }
+            }
+            
             voronoiEdges.add(new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(vector.x, vector.y)));
         }
     }
