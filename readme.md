@@ -2,7 +2,6 @@ Computational Geometry Project
 ==============================
 
 Project is written in Processing: https://processing.org/download/
-Open Framework.pde to launch the project.
 
 Controls:
 * A - Add new vertex under mouse cursor
