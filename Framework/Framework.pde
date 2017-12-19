@@ -1265,6 +1265,25 @@ void triangulateDelaunay(ArrayList<Point> polygon)
     }
 }
 
+Edge getOutgoingVoronoiEdge(Edge triangleEdge, Triangle triangle)
+{
+    Point intersection = triangleEdge.getNearestPoint(triangle.circleCenter);
+    PVector vector = new PVector(intersection.x - triangle.circleCenter.x, intersection.y - triangle.circleCenter.y);
+    vector.mult(100.0f);
+    
+    Edge test = new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(vector.x, vector.y));
+    if (!triangle.pointInside(triangle.circleCenter))
+    {
+        Edge closestIntersecting = test.getClosestIntersectingEdge(delaunayEdges);
+        if (closestIntersecting != null && closestIntersecting.sharesPoints(triangleEdge))
+        {
+            vector.mult(-1.0f);
+        }
+    }
+    
+    return new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(vector.x, vector.y));
+}
+
 void calculateVoronoi(ArrayList<Triangle> triangles)
 {
     for (Triangle triangle : triangles)
@@ -1298,59 +1317,20 @@ void calculateVoronoi(ArrayList<Triangle> triangles)
       
         if (triangle.first.onConvexHull)
         {
-            Point intersection = triangle.first.getNearestPoint(triangle.circleCenter);
-            PVector vector = new PVector(intersection.x - triangle.circleCenter.x, intersection.y - triangle.circleCenter.y);
-            vector.mult(100.0f);
-            
-            Edge test = new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(vector.x, vector.y));
-            if (!triangle.pointInside(triangle.circleCenter))
-            {
-                Edge closestIntersecting = test.getClosestIntersectingEdge(delaunayEdges);
-                if (closestIntersecting != null && closestIntersecting.sharesPoints(triangle.first))
-                {
-                    vector.mult(-1.0f);
-                }
-            }
-            
-            voronoiEdges.add(new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(vector.x, vector.y)));
+            Edge outgoing = getOutgoingVoronoiEdge(triangle.first, triangle);
+            voronoiEdges.add(outgoing);
         }
         
         if (triangle.second.onConvexHull)
         {
-            Point intersection = triangle.second.getNearestPoint(triangle.circleCenter);
-            PVector vector = new PVector(intersection.x - triangle.circleCenter.x, intersection.y - triangle.circleCenter.y);
-            vector.mult(100.0f);
-            
-            Edge test = new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(vector.x, vector.y));
-            if (!triangle.pointInside(triangle.circleCenter))
-            {
-                Edge closestIntersecting = test.getClosestIntersectingEdge(delaunayEdges);
-                if (closestIntersecting != null && closestIntersecting.sharesPoints(triangle.second))
-                {
-                    vector.mult(-1.0f);
-                }
-            }
-            
-            voronoiEdges.add(new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(vector.x, vector.y)));
+            Edge outgoing = getOutgoingVoronoiEdge(triangle.second, triangle);
+            voronoiEdges.add(outgoing);
         }
         
         if (triangle.third.onConvexHull)
         {
-            Point intersection = triangle.third.getNearestPoint(triangle.circleCenter);
-            PVector vector = new PVector(intersection.x - triangle.circleCenter.x, intersection.y - triangle.circleCenter.y);
-            vector.mult(100.0f);
-            
-            Edge test = new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(vector.x, vector.y));
-            if (!triangle.pointInside(triangle.circleCenter))
-            {
-                Edge closestIntersecting = test.getClosestIntersectingEdge(delaunayEdges);
-                if (closestIntersecting != null && closestIntersecting.sharesPoints(triangle.third))
-                {
-                    vector.mult(-1.0f);
-                }
-            }
-            
-            voronoiEdges.add(new Edge(new Point(triangle.circleCenter.x, triangle.circleCenter.y), new Point(vector.x, vector.y)));
+            Edge outgoing = getOutgoingVoronoiEdge(triangle.third, triangle);
+            voronoiEdges.add(outgoing);
         }
     }
 }
